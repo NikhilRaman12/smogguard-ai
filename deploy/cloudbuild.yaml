@@ -1,0 +1,116 @@
+steps:
+  # ── Build backend image ──
+  - id: 'build-backend'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-backend:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-backend:latest'
+      - '-f'
+      - 'Dockerfile.backend'
+      - '.'
+
+  # ── Build frontend image ──
+  - id: 'build-frontend'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-frontend:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-frontend:latest'
+      - '-f'
+      - 'Dockerfile.frontend'
+      - '.'
+
+  # ── Push backend image ──
+  - id: 'push-backend'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-backend'
+    waitFor: ['build-backend']
+
+  # ── Push frontend image ──
+  - id: 'push-frontend'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-frontend'
+    waitFor: ['build-frontend']
+
+  # ── Deploy backend to Cloud Run ──
+  - id: 'deploy-backend'
+    name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'smogguard-backend'
+      - '--image'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-backend:${SHORT_SHA}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--port'
+      - '8000'
+      - '--memory'
+      - '1Gi'
+      - '--cpu'
+      - '1'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '10'
+      - '--set-env-vars'
+      - 'APP_NAME=SmogGuard AI,DEBUG=false'
+      - '--set-secrets'
+      - 'GEMINI_API_KEY=smogguard-gemini-key:latest,DATABASE_URL=smogguard-database-url:latest,REDIS_URL=smogguard-redis-url:latest,JWT_SECRET_KEY=smogguard-jwt-secret:latest,WAQI_API_TOKEN=smogguard-waqi-token:latest'
+      - '--allow-unauthenticated'
+    waitFor: ['push-backend']
+
+  # ── Deploy frontend to Cloud Run ──
+  - id: 'deploy-frontend'
+    name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'smogguard-frontend'
+      - '--image'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-frontend:${SHORT_SHA}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--port'
+      - '3000'
+      - '--memory'
+      - '512Mi'
+      - '--cpu'
+      - '1'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '5'
+      - '--allow-unauthenticated'
+    waitFor: ['push-frontend']
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-backend:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-backend:latest'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-frontend:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/smogguard-frontend:latest'
+
+substitutions:
+  _REGION: us-central1
+  _REPO: smogguard-ai
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '1200s'

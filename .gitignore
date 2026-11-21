@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+venv/
+.venv/
+*.egg
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Environment
+.env
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+pgdata/
+*.db
+*.sqlite
+*.sqlite3
+backend/smogguard.db
