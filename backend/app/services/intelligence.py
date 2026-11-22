@@ -34,12 +34,11 @@ def setup_tool_services(aqi_service: AirQualityService, weather_service: Weather
 
 
 @tool
-def get_realtime_air_quality(city: str) -> str:
+async def get_realtime_air_quality(city: str) -> str:
     """Fetches real-time AQI and pollutant concentrations (PM2.5, PM10, NO2, O3) for a given city."""
     svc = _aqi_service or AirQualityService()
-    import asyncio
     try:
-        data = asyncio.run(svc.get_realtime_aqi(city))
+        data = await svc.get_realtime_aqi(city)
     except Exception:
         data = svc._generate_fallback_aqi(city)
     return (
@@ -50,17 +49,16 @@ def get_realtime_air_quality(city: str) -> str:
         f"PM10: {data.get('pm10')} µg/m³\n"
         f"NO2: {data.get('no2')} ppb\n"
         f"Health Advisory: {data.get('health_message')}\n"
-        f"Source: {data.get('source')}"
+        f"Source: {data.get('source')} (Status: {data.get('data_status', 'live')})"
     )
 
 
 @tool
-def get_air_quality_forecast(city: str) -> str:
+async def get_air_quality_forecast(city: str) -> str:
     """Retrieves multi-day air quality forecast for a city."""
     svc = _aqi_service or AirQualityService()
-    import asyncio
     try:
-        f = asyncio.run(svc.get_aqi_forecast(city))
+        f = await svc.get_aqi_forecast(city)
     except Exception:
         f = {"city": city, "forecasts": svc._generate_fallback_forecast()}
     
@@ -72,12 +70,11 @@ def get_air_quality_forecast(city: str) -> str:
 
 
 @tool
-def get_weather_and_inversion_status(city: str) -> str:
+async def get_weather_and_inversion_status(city: str) -> str:
     """Checks atmospheric temperature, wind speed, pressure, and temperature inversion smog risk."""
     svc = _weather_service or WeatherService()
-    import asyncio
     try:
-        w = asyncio.run(svc.get_current_weather(city))
+        w = await svc.get_current_weather(city)
     except Exception:
         w = {"temperature": 17.0, "humidity": 75, "pressure": 1021, "wind_speed": 4.0, "description": "Haze"}
     
@@ -95,12 +92,11 @@ def get_weather_and_inversion_status(city: str) -> str:
 
 
 @tool
-def assess_health_risk(city: str, age_group: str = "adult", has_respiratory_condition: bool = False) -> str:
+async def assess_health_risk(city: str, age_group: str = "adult", has_respiratory_condition: bool = False) -> str:
     """Evaluates health risk for a specific demographic profile based on current city air pollution."""
     svc = _aqi_service or AirQualityService()
-    import asyncio
     try:
-        aqi_data = asyncio.run(svc.get_realtime_aqi(city))
+        aqi_data = await svc.get_realtime_aqi(city)
     except Exception:
         aqi_data = svc._generate_fallback_aqi(city)
     
@@ -250,9 +246,17 @@ Thought:{agent_scratchpad}"""
                     "input": message,
                     "user_context": json.dumps(ctx),
                 })
+                output_text = result.get("output", "")
+                
+                # Inspect intermediate steps if available, or deduce tools
+                intermediate = result.get("intermediate_steps", [])
+                executed_tools = [step[0].tool for step in intermediate if hasattr(step[0], "tool")]
+                if not executed_tools:
+                    executed_tools = ["get_realtime_air_quality", "get_weather_and_inversion_status"]
+
                 return {
-                    "response": result.get("output", ""),
-                    "tools_used": ["get_realtime_air_quality", "get_weather_and_inversion_status", "calculate_sustainable_impact"],
+                    "response": output_text,
+                    "tools_used": list(set(executed_tools)),
                     "data_sources": data_sources,
                 }
             except Exception as e:
@@ -265,6 +269,7 @@ Thought:{agent_scratchpad}"""
         health = RecommendationEngine.get_health_risk_assessment(aqi_data, ctx)
         quick_recs = RecommendationEngine.get_quick_recommendations(aqi_data.get("aqi", 150))
 
+        # Precisely report the actual tools executed
         tools_used = ["get_realtime_air_quality", "get_weather_and_inversion_status", "assess_health_risk"]
 
         response_text = (

@@ -274,10 +274,23 @@ async def get_messages(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Retrieve message logs for a conversation."""
+    """Retrieve message logs for a conversation with strict ownership verification."""
+    # Verify conversation exists and belongs to current_user
+    try:
+        cid = uuid.UUID(conversation_id) if isinstance(conversation_id, str) else conversation_id
+    except (ValueError, TypeError):
+        cid = conversation_id
+    conv_query = select(Conversation).where(
+        Conversation.id == cid,
+        Conversation.user_id == current_user.id,
+    )
+    conv = (await db.execute(conv_query)).scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found or access denied.")
+
     query = (
         select(Message)
-        .where(Message.conversation_id == conversation_id)
+        .where(Message.conversation_id == cid)
         .order_by(Message.created_at.asc())
     )
     msgs = (await db.execute(query)).scalars().all()
@@ -303,61 +316,110 @@ async def generate_planner(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate an hour-by-hour low-emission pollution protective schedule."""
+    """Generate an adaptive low-emission pollution protective schedule calculated from live conditions."""
     city = current_user.city or "Delhi"
     aqi_data = await aqi_service.get_realtime_aqi(city)
     weather_data = await weather_service.get_current_weather(city)
+    inversion = weather_service.detect_temperature_inversion(weather_data)
 
-    # Intelligent routine schedule matrix
+    current_aqi = int(aqi_data.get("aqi", 150))
+    prefs = payload.preferences or {}
+    wants_outdoor = prefs.get("outdoor_exercise", False)
+
+    # Dynamic hour-by-hour scheduling algorithm driven by live inversion physics
+    schedule = []
+
+    # 1. Early Morning (06:00 - 08:30)
+    if inversion["risk_level"] in ["Severe", "High"] or current_aqi > 200:
+        morning_act = "Indoor HIIT / Yoga in Air Sanctuary Room"
+        morning_loc = "Sealed living area with HEPA filtration"
+        morning_save = f"Avoids ~{int(current_aqi * 0.8)} µg PM2.5 peak morning surface inhalation"
+        morning_note = "Strong thermal boundary inversion trapping toxic ground particulates; zero outdoor jogging"
+    else:
+        morning_act = "Light Outdoor Walk or Aerated Balcony Workout"
+        morning_loc = "Local neighborhood greenway"
+        morning_save = "Low particulate exposure during favorable surface mixing"
+        morning_note = "Atmospheric ventilation is currently adequate"
+
+    schedule.append({
+        "time": "06:30 - 08:00",
+        "activity": morning_act,
+        "location": morning_loc,
+        "emissions_saved": morning_save,
+        "risk_note": morning_note,
+    })
+
+    # 2. Morning Commute (08:30 - 09:30)
+    if current_aqi > 150:
+        commute_act = "Electric Metro / Shared Public Transit (WFH if feasible)"
+        commute_loc = "Transit rail corridor (N95 respirator mandatory)"
+        commute_save = "Saves 2.3 kg CO2 and reduces vehicular particulate exposure"
+        commute_note = "Ensure tight nasal bridge seal on N95 respirator during above-ground transit"
+    else:
+        commute_act = "E-Bike / Walk or Standard Public Transit"
+        commute_loc = "Active urban bike path / transit"
+        commute_save = "Saves 2.6 kg CO2 vs single-occupancy petrol vehicle"
+        commute_note = "Air quality acceptable for moderate active transit"
+
+    schedule.append({
+        "time": "08:30 - 09:30",
+        "activity": commute_act,
+        "location": commute_loc,
+        "emissions_saved": commute_save,
+        "risk_note": commute_note,
+    })
+
+    # 3. Midday Solar Aeration Window (12:30 - 14:30)
+    aeration_save = "Passive indoor carbon dioxide flush (drops CO2 < 600 ppm)"
+    aeration_note = "Peak solar radiation warms ground and temporarily lifts atmospheric boundary lid"
+    schedule.append({
+        "time": "12:30 - 14:00",
+        "activity": "Brief Controlled Window Aeration & Healthy Lunch",
+        "location": "Upper transom windows / indoor dining",
+        "emissions_saved": aeration_save,
+        "risk_note": aeration_note,
+    })
+
+    # 4. Evening Living & Cooking (18:00 - 19:30)
+    schedule.append({
+        "time": "18:00 - 19:30",
+        "activity": "Induction Cooking & Microfiber Wet Mopping",
+        "location": "Kitchen & Main Quarters",
+        "emissions_saved": "Eliminates gas burner combustion NO2 and traps settled particulate fallout",
+        "risk_note": "Evening ground cooling begins trapping traffic emissions; keep exterior doors shut",
+    })
+
+    # 5. Night Air Sanctuary (21:30 - 07:00)
+    schedule.append({
+        "time": "21:30 - 06:30",
+        "activity": "Sealed Clean-Air Sanctuary Sleep",
+        "location": "Primary bedroom with draft stoppers & active HEPA unit",
+        "emissions_saved": f"Guarantees overnight exposure < 20 µg/m³ despite ambient AQI {current_aqi}",
+        "risk_note": "Operate purifier on whisper quiet mode; keep internal doors shut",
+    })
+
+    emission_reduction_pct = min(60, max(25, int(current_aqi * 0.15 + 15)))
+
     routine = {
         "target_date": str(payload.target_date or date.today()),
         "city": city,
-        "overall_advisory": f"Current AQI is {aqi_data['aqi']} ({aqi_data['health_category']}). Minimize morning rush exposure.",
-        "schedule": [
-            {
-                "time": "06:30 - 08:00",
-                "activity": "Indoor Cardio / Core Yoga",
-                "location": "Closed living room with HEPA purifier",
-                "emissions_saved": "Avoids 120 µg PM2.5 peak morning inhalation",
-                "risk_note": "Morning inversion trap active; avoid outdoor running",
-            },
-            {
-                "time": "08:30 - 09:30",
-                "activity": "Electric Metro / Shared Public Transit Commute",
-                "location": "Transit network (N95 mask equipped)",
-                "emissions_saved": "Saves 2.3 kg CO2 vs private car trip",
-                "risk_note": "Ensure mask seal around nasal bridge",
-            },
-            {
-                "time": "12:30 - 14:30",
-                "activity": "Safe Ventilation & Solar Aeration Window",
-                "location": "Home / Office workspace",
-                "emissions_saved": "Passive solar heat dissipation",
-                "risk_note": "Optimal window for opening high-level transom vents",
-            },
-            {
-                "time": "18:00 - 19:30",
-                "activity": "Induction Home Cooking & Microfiber Wet Mopping",
-                "location": "Kitchen / Living quarters",
-                "emissions_saved": "Eliminates indoor gas combustion NO2",
-                "risk_note": "Wet wipe floor to bind settling fine dust",
-            },
-            {
-                "time": "21:00 - 07:00",
-                "activity": "Sealed Bedroom Air Sanctuary",
-                "location": "Sealed bedroom with draft excluder",
-                "emissions_saved": "Steady state < 20 µg/m³ PM2.5 overnight",
-                "risk_note": "Run purifier on low whisper quiet mode",
-            },
-        ],
+        "data_provenance": {
+            "aqi": current_aqi,
+            "data_status": aqi_data.get("data_status", "live"),
+            "inversion_risk": inversion["risk_level"],
+            "wind_speed_kmh": weather_data.get("wind_speed"),
+            "temperature_c": weather_data.get("temperature"),
+        },
+        "overall_advisory": f"Current AQI is {current_aqi} ({aqi_data.get('health_category')}). {inversion['scientific_summary']}",
+        "schedule": schedule,
     }
 
     new_routine = DailyRoutine(
         user_id=current_user.id,
         plan_date=payload.target_date or date.today(),
         routine_data=routine,
-        estimated_emission_reduction_pct=42,
-        aqi_at_generation=aqi_data["aqi"],
+        estimated_emission_reduction_pct=emission_reduction_pct,
+        aqi_at_generation=current_aqi,
     )
     db.add(new_routine)
     await db.commit()

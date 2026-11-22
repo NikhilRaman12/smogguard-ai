@@ -6,6 +6,7 @@ JWT token issuing and validation, password hashing via bcrypt.
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -52,39 +53,53 @@ async def get_current_user(
     token: str | None = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    """FastAPI dependency to extract user without requiring email/password login."""
+    """FastAPI dependency to extract authenticated user or use explicit demo mode."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
     if token:
         try:
             payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
             user_id: str = payload.get("sub")
             if user_id:
-                query = select(User).where(User.id == user_id)
+                try:
+                    uid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+                except (ValueError, TypeError):
+                    uid = user_id
+                query = select(User).where(User.id == uid)
                 res = await db.execute(query)
                 user = res.scalar_one_or_none()
                 if user:
                     return user
-        except Exception:
-            pass
+        except JWTError:
+            if not settings.demo_mode:
+                raise credentials_exception
 
-    # Direct open-access: fetch or auto-create default profile
-    query = select(User).where(User.email == "demo@smogguard.ai")
-    res = await db.execute(query)
-    demo_user = res.scalar_one_or_none()
-    if demo_user:
-        return demo_user
+    # If in DEMO MODE (default for review and local evaluation), allow deterministic isolated demo user
+    if settings.demo_mode:
+        query = select(User).where(User.email == "demo@smogguard.ai")
+        res = await db.execute(query)
+        demo_user = res.scalar_one_or_none()
+        if demo_user:
+            return demo_user
 
-    # Create default local user on the fly
-    default_user = User(
-        email="demo@smogguard.ai",
-        password_hash="nopassword",
-        name="Urban Eco Resident",
-        city="Delhi",
-        country="India",
-        home_type="Apartment",
-        health_conditions={"asthma": True, "allergies": True},
-        family_members=[{"is_child": True}, {"is_elderly": False}],
-    )
-    db.add(default_user)
-    await db.commit()
-    await db.refresh(default_user)
-    return default_user
+        # Create demo user
+        default_user = User(
+            email="demo@smogguard.ai",
+            password_hash=hash_password("DemoPassword123!"),
+            name="Urban Eco Resident",
+            city="Delhi",
+            country="India",
+            home_type="Apartment",
+            health_conditions={"asthma": True, "allergies": True},
+            family_members=[{"is_child": True}, {"is_elderly": False}],
+        )
+        db.add(default_user)
+        await db.commit()
+        await db.refresh(default_user)
+        return default_user
+
+    raise credentials_exception

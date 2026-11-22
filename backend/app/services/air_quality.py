@@ -158,11 +158,15 @@ class AirQualityService:
             "color_code": color,
             "health_message": message,
             "recorded_at": datetime.utcnow(),
-            "source": "WAQI Real-Time Feed",
+            "source": "WAQI Official Ground Station Feed",
+            "data_status": "live",
+            "station_name": d.get("city", {}).get("name", city),
+            "confidence_score": 0.98,
+            "limitations": ["Sensor coverage represents urban monitoring station radius"],
         }
 
     def _generate_fallback_aqi(self, city: str) -> dict[str, Any]:
-        """Provides realistic AQI for well-known cities during winter smog seasons."""
+        """Provides labeled estimated/simulated AQI when external station feed is offline."""
         city_lower = city.lower()
         if "delhi" in city_lower or "lahore" in city_lower:
             aqi = 285
@@ -198,7 +202,14 @@ class AirQualityService:
             "color_code": color,
             "health_message": message,
             "recorded_at": datetime.utcnow(),
-            "source": "WAQI Regional Estimation",
+            "source": "Historical Regional Climate Simulation (Offline Fallback)",
+            "data_status": "simulated",
+            "station_name": f"{city} Climatological Model",
+            "confidence_score": 0.75,
+            "limitations": [
+                "External station API currently unreachable; values derived from seasonal urban averages",
+                "Do not use for emergency decisions without checking local authorities",
+            ],
         }
 
     def _generate_fallback_forecast(self) -> dict[str, list[dict[str, Any]]]:

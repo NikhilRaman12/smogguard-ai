@@ -58,6 +58,15 @@ class Settings(BaseSettings):
         default="SmogGuard AI",
         alias="APP_NAME",
     )
+    demo_mode: bool = Field(
+        default=True,
+        alias="DEMO_MODE",
+        description="If True, enables demo sandbox access for judging without login",
+    )
+    cors_origins: list[str] = Field(
+        default=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"],
+        alias="CORS_ORIGINS",
+    )
 
     @property
     def DATABASE_URL(self) -> str:

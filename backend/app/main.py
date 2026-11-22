@@ -27,13 +27,16 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Lifespan context manager to initialize database schema on startup."""
+    """Lifespan context manager to initialize database schema on startup with fail-fast validation in production."""
     logger.info("Starting SmogGuard AI backend services...")
     try:
         await init_db()
         logger.info("Database schema initialized successfully.")
     except Exception as exc:
-        logger.error(f"Database initialization warning: {exc}")
+        logger.error(f"Database initialization error: {exc}")
+        # In strict non-demo production mode, abort startup if database is unreachable
+        if not settings.demo_mode:
+            raise RuntimeError(f"Database initialization failed in production mode: {exc}") from exc
     yield
     logger.info("Shutting down SmogGuard AI backend services.")
 
@@ -45,15 +48,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS configuration for cross-origin local React development and production
+# CORS configuration for cross-origin development and production Cloud Run domains
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

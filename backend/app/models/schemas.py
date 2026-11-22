@@ -106,6 +106,18 @@ class AQICurrentResponse(BaseModel):
     health_message: str | None = None
     recorded_at: datetime | None = None
     source: str | None = None
+    data_status: str = Field(
+        default="live",
+        description="Data provenance: live | cached | estimated | simulated | unavailable",
+    )
+    station_name: str | None = None
+    confidence_score: float = Field(
+        default=0.95,
+        ge=0.0,
+        le=1.0,
+        description="Estimated data reliability / confidence index",
+    )
+    limitations: list[str] = Field(default_factory=list)
 
 
 class AQIForecastDay(BaseModel):
