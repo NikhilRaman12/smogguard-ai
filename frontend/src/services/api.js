@@ -19,17 +19,11 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor — redirect on 401
+// Response interceptor — graceful handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('smogguard_token');
-      localStorage.removeItem('smogguard_user');
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-        window.location.href = '/login';
-      }
-    }
+    // Open access mode: do not force login redirects
     return Promise.reject(error);
   }
 );
