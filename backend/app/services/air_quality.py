@@ -151,7 +151,7 @@ class AirQualityService:
             "o3": float(iaqi.get("o3", {}).get("v", 24.0)),
             "co": float(iaqi.get("co", {}).get("v", 1.2)),
             "dominant_pollutant": d.get("dominentpol", "pm25"),
-            "city": d.get("city", {}).get("name", city),
+            "city": city,
             "latitude": float(geo[0]) if len(geo) > 0 else None,
             "longitude": float(geo[1]) if len(geo) > 1 else None,
             "health_category": category,
@@ -160,7 +160,7 @@ class AirQualityService:
             "recorded_at": datetime.utcnow(),
             "source": "WAQI Official Ground Station Feed",
             "data_status": "live",
-            "station_name": d.get("city", {}).get("name", city),
+            "station_name": d.get("city", {}).get("name", f"{city} Air Monitoring Station"),
             "confidence_score": 0.98,
             "limitations": ["Sensor coverage represents urban monitoring station radius"],
         }

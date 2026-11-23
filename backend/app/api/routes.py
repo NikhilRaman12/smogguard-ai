@@ -201,11 +201,17 @@ async def chat_assistant(
         db.add(conv)
         await db.commit()
         await db.refresh(conv)
+        conv_uuid = conv.id
         conv_id = str(conv.id)
+    else:
+        try:
+            conv_uuid = uuid.UUID(conv_id) if isinstance(conv_id, str) else conv_id
+        except (ValueError, TypeError):
+            conv_uuid = conv_id
 
     # Persist user message
     user_msg = Message(
-        conversation_id=conv_id,
+        conversation_id=conv_uuid,
         role="user",
         content=payload.message,
     )
@@ -229,7 +235,7 @@ async def chat_assistant(
 
     # Persist assistant message
     asst_msg = Message(
-        conversation_id=conv_id,
+        conversation_id=conv_uuid,
         role="assistant",
         content=result["response"],
         tool_calls={"tools": result.get("tools_used", [])},
