@@ -6,6 +6,7 @@ and provides classification against standard EPA AQI breaks.
 
 from __future__ import annotations
 
+import os
 import logging
 from datetime import datetime
 from typing import Any
@@ -24,8 +25,8 @@ class AirQualityService:
 
     BASE_URL = "https://api.waqi.info"
 
-    def __init__(self, api_token: str = "demo") -> None:
-        self.api_token = api_token or "demo"
+    def __init__(self, api_token: str | None = None) -> None:
+        self.api_token = api_token or os.environ.get("WAQI_API_TOKEN", "demo")
 
     async def get_realtime_aqi(self, city: str) -> dict[str, Any]:
         """
