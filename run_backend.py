@@ -6,8 +6,26 @@ project_root = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.join(project_root, "backend")
 db_file = os.path.join(backend_dir, "smogguard.db").replace("\\", "/")
 
+# Load environment variables from .env or .env.example if present
+def load_env_file(filepath: str):
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, val = line.split("=", 1)
+                    key = key.strip()
+                    val = val.strip().strip("\"'")
+                    if val and val != "your_gemini_api_key_here":
+                        os.environ.setdefault(key, val)
+
+# Priority: .env, then .env.example
+load_env_file(os.path.join(project_root, ".env"))
+load_env_file(os.path.join(project_root, ".env.example"))
+
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_file}"
-os.environ["GEMINI_API_KEY"] = os.environ.get("GEMINI_API_KEY", "demo-local-key")
+if "GEMINI_API_KEY" not in os.environ:
+    os.environ["GEMINI_API_KEY"] = "demo-local-key"
 os.environ["WAQI_API_TOKEN"] = os.environ.get("WAQI_API_TOKEN", "demo")
 
 if backend_dir not in sys.path:
