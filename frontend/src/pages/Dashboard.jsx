@@ -22,6 +22,7 @@ import ForecastChart from '../components/ForecastChart';
 import RecommendationCard from '../components/RecommendationCard';
 import AtmosphericParticleCanvas from '../components/AtmosphericParticleCanvas';
 import InteractiveInterventionHub from '../components/InteractiveInterventionHub';
+import MunicipalIntelligence from '../components/MunicipalIntelligence';
 import { getDashboard, logImpact, getAQIForecast } from '../services/api';
 import { useAuthStore, useAQIStore } from '../services/store';
 
@@ -366,6 +367,9 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* UrbanGuard India: Municipal & Institutional Intelligence Command Section */}
+      <MunicipalIntelligence activeCity={activeCity} />
     </div>
   );
 }

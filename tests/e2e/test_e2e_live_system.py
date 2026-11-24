@@ -108,6 +108,10 @@ required_routes = [
     "/api/v1/assistant/chat",
     "/api/v1/assistant/conversations",
     "/api/v1/auth/me",
+    "/api/v1/municipal/wards",
+    "/api/v1/municipal/hotspots",
+    "/api/v1/municipal/water",
+    "/api/v1/municipal/interventions",
 ]
 for route in required_routes:
     log_test(f"API Route Registered: {route}", route in paths)
@@ -197,6 +201,23 @@ if conv_id:
         "Chat conversation audit trail persisted to DB with strict tenant isolation",
         code == 200 and isinstance(msgs, list) and len(msgs) >= 2
     )
+
+# -------------------------------------------------------------
+# 6. URBAN GUARD INDIA: MUNICIPAL & MULTI-DOMAIN AUDIT
+# -------------------------------------------------------------
+print(f"\n{YELLOW}[6. URBAN GUARD INDIA: MUNICIPAL DECISION SUPPORT & MULTI-DOMAIN]{RESET}")
+
+code, wards_res = http_req(f"{BACKEND_URL}/api/v1/municipal/wards?city=Hyderabad")
+log_test("Municipal Wards API delivers vulnerability indices", code == 200 and wards_res.get("total_wards", 0) >= 4)
+
+code, spots_res = http_req(f"{BACKEND_URL}/api/v1/municipal/hotspots?city=Hyderabad")
+log_test("Environmental Hotspots API returns multi-domain hazard logs", code == 200 and len(spots_res.get("hotspots", [])) >= 4)
+
+code, water_res = http_req(f"{BACKEND_URL}/api/v1/municipal/water?city=Hyderabad")
+log_test("Hydrological Water Quality API returns CPCB lake classifications", code == 200 and len(water_res.get("readings", [])) >= 3)
+
+code, int_res = http_req(f"{BACKEND_URL}/api/v1/municipal/interventions?city=Hyderabad")
+log_test("Municipal Interventions API delivers budgeted CAPEX/OPEX programs", code == 200 and len(int_res.get("programs", [])) >= 3)
 
 print(f"\n{CYAN}================================================================={RESET}")
 print(f"{CYAN}   E2E CERTIFICATION RESULT: {passed} PASSED | {failed} FAILED                 {RESET}")
