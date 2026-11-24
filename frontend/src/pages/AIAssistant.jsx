@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Bot, Sparkles, Plus, MessageSquare, Trash2, ArrowRight } from 'lucide-react';
+import { Send, Bot, Sparkles, Plus, MessageSquare, Trash2, ArrowRight, ChevronRight } from 'lucide-react';
 import ChatMessage from '../components/ChatMessage';
 import { sendMessage, getConversations, getMessages } from '../services/api';
 import { useAuthStore } from '../services/store';
