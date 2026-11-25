@@ -7,7 +7,7 @@ backend_dir = os.path.join(project_root, "backend")
 db_file = os.path.join(backend_dir, "smogguard.db").replace("\\", "/")
 
 # Load environment variables from .env or .env.example if present
-def load_env_file(filepath: str):
+def load_env_file(filepath: str, override: bool = False):
     if os.path.exists(filepath):
         with open(filepath, "r", encoding="utf-8") as f:
             for line in f:
@@ -17,11 +17,14 @@ def load_env_file(filepath: str):
                     key = key.strip()
                     val = val.strip().strip("\"'")
                     if val and val != "your_gemini_api_key_here":
-                        os.environ.setdefault(key, val)
+                        if override:
+                            os.environ[key] = val
+                        else:
+                            os.environ.setdefault(key, val)
 
-# Priority: .env, then .env.example
-load_env_file(os.path.join(project_root, ".env"))
-load_env_file(os.path.join(project_root, ".env.example"))
+# Priority: .env (overrides stale system vars), then .env.example
+load_env_file(os.path.join(project_root, ".env"), override=True)
+load_env_file(os.path.join(project_root, ".env.example"), override=False)
 
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_file}"
 if "GEMINI_API_KEY" not in os.environ:

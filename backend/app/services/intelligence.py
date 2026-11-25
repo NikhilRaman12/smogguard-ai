@@ -11,6 +11,7 @@ import json
 import logging
 from typing import Any
 
+import httpx
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain_core.prompts import PromptTemplate
 from langchain_core.tools import tool
@@ -170,62 +171,67 @@ class SmogGuardIntelligence:
     def _init_agent(self) -> None:
         self.llm = None
         self.agent_executor = None
+        self.gemini_models = [
+            "gemini-3-flash-preview",
+            "gemini-3.1-flash-lite",
+            "gemini-3.5-flash-lite",
+            "gemini-3.6-flash",
+            "gemini-3.8-flash",
+        ]
+        self.has_valid_key = bool(
+            self.gemini_api_key
+            and self.gemini_api_key not in {"your_gemini_api_key_here", "demo-local-key", ""}
+        )
 
-        if not self.gemini_api_key or self.gemini_api_key == "your_gemini_api_key_here":
+        if not self.has_valid_key:
             logger.warning("No valid Gemini API key provided. Operating in deterministic intelligence mode.")
             return
 
-        try:
-            self.llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash",
-                google_api_key=self.gemini_api_key,
-                temperature=0.2,
-            )
+        logger.info("Gemini REST Intelligence Engine initialized with multi-model fallback chain.")
 
-            prompt_template = """You are SmogGuard AI, an elite environmental health intelligence assistant specializing in urban air pollution and winter smog mitigation.
-You are NOT a generic chatbot. You are a high-fidelity intelligence system that uses tools to fetch real data before advising.
+    async def _call_gemini_rest(
+        self,
+        message: str,
+        system_prompt: str,
+        history: list[dict[str, Any]] | None = None,
+    ) -> tuple[str | None, str | None]:
+        """Call Google Gemini v1beta REST API with multi-model fallback for high reliability."""
+        contents: list[dict[str, Any]] = []
+        if history:
+            for h in history[-8:]:
+                role = "model" if h.get("role") == "assistant" else "user"
+                text = h.get("content", "")
+                if text:
+                    contents.append({"role": role, "parts": [{"text": text}]})
+        contents.append({"role": "user", "parts": [{"text": message}]})
 
-You have access to the following tools:
-{tools}
+        payload = {
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": contents,
+            "generationConfig": {
+                "temperature": 0.4,
+                "maxOutputTokens": 1024,
+            },
+        }
 
-Use the following format:
-Question: the input question you must answer
-Thought: you should always think about what to do and which tool to use
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final comprehensive response to the original input question
-
-Always adhere to these rules:
-1. Always query real-time air quality using tools. Do not hallucinate AQI values.
-2. Formulate specific, low-emission daily routines and indoor hacks tailored to user profile.
-3. Quantify emission reductions and health exposure impacts explicitly (kg CO2, µg PM2.5 avoided).
-4. Explain the atmospheric physics (temperature inversions, hygroscopic growth) succinctly.
-
-User Context:
-{user_context}
-
-Question: {input}
-Thought:{agent_scratchpad}"""
-
-            prompt = PromptTemplate(
-                template=prompt_template,
-                input_variables=["input", "agent_scratchpad", "tools", "tool_names", "user_context"]
-            )
-
-            react_agent = create_react_agent(self.llm, self.tools, prompt)
-            self.agent_executor = AgentExecutor(
-                agent=react_agent,
-                tools=self.tools,
-                verbose=True,
-                handle_parsing_errors=True,
-                max_iterations=5,
-            )
-        except Exception as exc:
-            logger.error(f"Failed to initialize LangChain Gemini agent: {exc}")
-            self.agent_executor = None
+        async with httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=4.0)) as client:
+            for model in self.gemini_models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.gemini_api_key}"
+                try:
+                    resp = await client.post(url, json=payload)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        candidates = data.get("candidates", [])
+                        if candidates:
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            text = "".join(p.get("text", "") for p in parts).strip()
+                            if text:
+                                return text, model
+                    else:
+                        logger.warning(f"Gemini model {model} returned HTTP {resp.status_code}; trying next fallback.")
+                except Exception as exc:
+                    logger.warning(f"Gemini model {model} request failed: {exc}; trying next fallback.")
+        return None, None
 
     async def chat(
         self,
@@ -253,40 +259,58 @@ Thought:{agent_scratchpad}"""
         tools_used = []
         data_sources = ["WAQI Real-Time Air Quality Network", "Atmospheric Boundary Layer Model"]
 
-        # Run via LangChain if agent initialized
-        if self.agent_executor:
-            try:
-                result = await self.agent_executor.ainvoke({
-                    "input": message,
-                    "user_context": json.dumps({**ctx, "target_city": city}),
-                })
-                output_text = result.get("output", "")
-                
-                # Inspect intermediate steps if available, or deduce tools
-                intermediate = result.get("intermediate_steps", [])
-                executed_tools = [step[0].tool for step in intermediate if hasattr(step[0], "tool")]
-                if not executed_tools:
-                    executed_tools = ["get_realtime_air_quality", "get_weather_and_inversion_status"]
+        # Fetch live environmental telemetry & risk assessment for grounding
+        aqi_data = await self.aqi_service.get_realtime_aqi(city)
+        weather_data = await self.weather_service.get_current_weather(city)
+        inv = self.weather_service.detect_temperature_inversion(weather_data)
+        health = RecommendationEngine.get_health_risk_assessment(aqi_data, ctx)
 
+        # 1. Live Google Gemini Intelligence (handles ANY user question, grounded in live telemetry)
+        if self.has_valid_key:
+            system_prompt = (
+                "You are SmogGuard AI (UrbanGuard India), an elite Environmental Data Scientist, Urban Climate Analyst, "
+                "and versatile AI Assistant powered by Google Gemini.\n\n"
+                "CAPABILITIES & BEHAVIOR:\n"
+                "- You can answer ANY question the user asks: air quality, winter smog physics, health/asthma advice, "
+                "DIY indoor air hacks, municipal water/noise/heat intelligence, daily routines, climate policy, science, "
+                "technology, or general knowledge.\n"
+                "- Whenever the user's question relates to air quality, weather, health, or sustainability, ground your "
+                "answer in the LIVE TELEMETRY provided below (never invent conflicting AQI numbers) and quantify CO2 / PM2.5 impact.\n"
+                "- When the user asks a general or non-environmental question, answer it directly, accurately, and helpfully "
+                "without forcing unrelated AQI statistics.\n"
+                "- Format responses cleanly in GitHub-flavored Markdown with clear headings and concise bullet points.\n\n"
+                f"LIVE TELEMETRY FOR {aqi_data.get('city', city).upper()}:\n"
+                f"- AQI: {aqi_data.get('aqi')} ({aqi_data.get('health_category')}) | Dominant: {aqi_data.get('dominant_pollutant')}\n"
+                f"- PM2.5: {aqi_data.get('pm25')} µg/m³ | PM10: {aqi_data.get('pm10')} µg/m³ | NO2: {aqi_data.get('no2')} ppb\n"
+                f"- Data Status: {aqi_data.get('data_status', 'live')} (Confidence: {aqi_data.get('confidence_score', 0.95)})\n"
+                f"- Weather: {weather_data.get('temperature')}°C, Wind {weather_data.get('wind_speed')} km/h, Pressure {weather_data.get('pressure')} hPa\n"
+                f"- Temperature Inversion Risk: {inv.get('risk_level')} — {inv.get('scientific_summary')}\n"
+                f"- Clinical Health Risk: {health.get('risk_level')} (Score {health.get('risk_score')}/100) — {health.get('description')}\n"
+                f"- User Profile: {json.dumps(ctx)}"
+            )
+            gemini_text, used_model = await self._call_gemini_rest(
+                message=message,
+                system_prompt=system_prompt,
+                history=conversation_history,
+            )
+            if gemini_text:
                 return {
-                    "response": output_text,
-                    "tools_used": list(set(executed_tools)),
-                    "data_sources": data_sources,
+                    "response": gemini_text,
+                    "tools_used": [
+                        "get_realtime_air_quality",
+                        "get_weather_and_inversion_status",
+                        "assess_health_risk",
+                        f"gemini:{used_model}",
+                    ],
+                    "data_sources": data_sources + [f"Google Gemini ({used_model})"],
                 }
-            except Exception as e:
-                logger.error(f"Agent execution encountered error: {e}. Executing expert fallback synthesis.")
 
-        # 2. Dynamic, Intent-Specific Scientific Synthesis Engine
+        # 2. Dynamic, Intent-Specific Scientific Synthesis Engine (offline/fallback)
         # Classify intent from user prompt
         is_hacks_query = any(k in msg_lower for k in ["hack", "indoor", "purifier", "filter", "diy", "room", "seal", "plant"])
         is_routine_query = any(k in msg_lower for k in ["routine", "schedule", "exercise", "walk", "jog", "commute", "travel", "plan", "morning", "evening"])
         is_impact_query = any(k in msg_lower for k in ["impact", "carbon", "co2", "save", "reduction", "emission", "metro", "electric"])
         is_health_query = any(k in msg_lower for k in ["asthma", "child", "elderly", "health", "symptom", "mask", "n95", "cough", "doctor", "risk"])
-
-        aqi_data = await self.aqi_service.get_realtime_aqi(city)
-        weather_data = await self.weather_service.get_current_weather(city)
-        inv = self.weather_service.detect_temperature_inversion(weather_data)
-        health = RecommendationEngine.get_health_risk_assessment(aqi_data, ctx)
         
         # Build tailored responses based on exact question intent
         if is_hacks_query:
