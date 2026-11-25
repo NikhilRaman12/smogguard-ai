@@ -12,10 +12,7 @@ import logging
 from typing import Any
 
 import httpx
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain_core.prompts import PromptTemplate
 from langchain_core.tools import tool
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.services.air_quality import AirQualityService
 from app.services.recommendations import RecommendationEngine
@@ -62,7 +59,7 @@ async def get_air_quality_forecast(city: str) -> str:
         f = await svc.get_aqi_forecast(city)
     except Exception:
         f = {"city": city, "forecasts": svc._generate_fallback_forecast()}
-    
+
     pm25_days = f.get("forecasts", {}).get("pm25", [])
     lines = [f"Forecast for {city}:"]
     for day in pm25_days:
@@ -78,7 +75,7 @@ async def get_weather_and_inversion_status(city: str) -> str:
         w = await svc.get_current_weather(city)
     except Exception:
         w = {"temperature": 17.0, "humidity": 75, "pressure": 1021, "wind_speed": 4.0, "description": "Haze"}
-    
+
     inv = svc.detect_temperature_inversion(w)
     return (
         f"Weather for {city}:\n"
@@ -100,7 +97,7 @@ async def assess_health_risk(city: str, age_group: str = "adult", has_respirator
         aqi_data = await svc.get_realtime_aqi(city)
     except Exception:
         aqi_data = svc._generate_fallback_aqi(city)
-    
+
     profile = {
         "health_conditions": {"asthma": has_respiratory_condition},
         "family_members": [{"is_child": age_group == "child", "is_elderly": age_group == "elderly"}]
@@ -241,7 +238,7 @@ class SmogGuardIntelligence:
     ) -> dict[str, Any]:
         """Process user message through LangChain ReAct agent or specialized dynamic deterministic fallback."""
         ctx = user_context or {}
-        
+
         # 1. Extract dynamic city context from message or fallback to user profile
         msg_lower = message.lower()
         extracted_city = None
@@ -311,7 +308,7 @@ class SmogGuardIntelligence:
         is_routine_query = any(k in msg_lower for k in ["routine", "schedule", "exercise", "walk", "jog", "commute", "travel", "plan", "morning", "evening"])
         is_impact_query = any(k in msg_lower for k in ["impact", "carbon", "co2", "save", "reduction", "emission", "metro", "electric"])
         is_health_query = any(k in msg_lower for k in ["asthma", "child", "elderly", "health", "symptom", "mask", "n95", "cough", "doctor", "risk"])
-        
+
         # Build tailored responses based on exact question intent
         if is_hacks_query:
             tools_used = ["get_indoor_air_hacks", "get_realtime_air_quality"]

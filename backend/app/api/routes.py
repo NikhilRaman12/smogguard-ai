@@ -19,7 +19,6 @@ from app.api.auth import create_access_token, get_current_user, hash_password, v
 from app.config import get_settings
 from app.models.database import (
     AlertPreference,
-    AQIReading,
     Conversation,
     DailyRoutine,
     ImpactLog,
@@ -329,8 +328,6 @@ async def generate_planner(
     inversion = weather_service.detect_temperature_inversion(weather_data)
 
     current_aqi = int(aqi_data.get("aqi", 150))
-    prefs = payload.preferences or {}
-    wants_outdoor = prefs.get("outdoor_exercise", False)
 
     # Dynamic hour-by-hour scheduling algorithm driven by live inversion physics
     schedule = []
@@ -902,4 +899,3 @@ async def get_municipal_interventions(
         },
     ]
     return {"city": city, "total_interventions": len(interventions), "programs": interventions}
-

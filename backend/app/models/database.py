@@ -25,9 +25,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
     func,
-    Index,
 )
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.ext.asyncio import (
@@ -43,6 +41,7 @@ from app.config import get_settings
 # Declarative base
 # ---------------------------------------------------------------------------
 
+
 class Base(DeclarativeBase):
     """Base class for all ORM models."""
     pass
@@ -50,6 +49,7 @@ class Base(DeclarativeBase):
 # ---------------------------------------------------------------------------
 # Organizations & Users
 # ---------------------------------------------------------------------------
+
 
 class Organization(Base):
     """Municipal Corporation, Commercial Real Estate, Industrial Campus, or Healthcare Network."""
@@ -358,6 +358,7 @@ async_session = async_sessionmaker(
     expire_on_commit=False,
 )
 
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency yielding an async database session."""
     async with async_session() as session:
@@ -369,6 +370,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
+
 
 async def init_db() -> None:
     """Create all tables defined on Base (idempotent startup routine)."""
