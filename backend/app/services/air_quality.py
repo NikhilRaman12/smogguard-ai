@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import os
 import logging
+import re
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,13 +30,20 @@ class AirQualityService:
     def __init__(self, api_token: str | None = None) -> None:
         self.api_token = api_token or os.environ.get("WAQI_API_TOKEN", "demo")
 
+    @staticmethod
+    def _sanitize_city(city: str) -> tuple[str, str]:
+        """Sanitize city input to prevent path traversal or SSRF in outbound WAQI URLs."""
+        cleaned = re.sub(r"[^a-zA-Z0-9\s\-,]", "", (city or "Delhi")).strip()[:80]
+        display_city = cleaned or "Delhi"
+        return display_city, quote(display_city, safe="")
+
     async def get_realtime_aqi(self, city: str) -> dict[str, Any]:
         """
         Fetch real-time air quality data for a specific city.
         Falls back to structured synthetic data if the external API is unreachable.
         """
-        clean_city = (city or "Delhi").strip()
-        url = f"{self.BASE_URL}/feed/{clean_city}/"
+        clean_city, encoded_city = self._sanitize_city(city)
+        url = f"{self.BASE_URL}/feed/{encoded_city}/"
         params = {"token": self.api_token}
 
         try:
@@ -56,8 +65,8 @@ class AirQualityService:
         """
         Extract daily pollutant forecasts from WAQI response.
         """
-        clean_city = (city or "Delhi").strip()
-        url = f"{self.BASE_URL}/feed/{clean_city}/"
+        clean_city, encoded_city = self._sanitize_city(city)
+        url = f"{self.BASE_URL}/feed/{encoded_city}/"
         params = {"token": self.api_token}
 
         forecasts: dict[str, list[dict[str, Any]]] = {"pm25": [], "pm10": [], "o3": []}

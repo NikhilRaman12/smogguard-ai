@@ -191,3 +191,95 @@ def test_health_endpoint_latency_under_200ms(client: TestClient) -> None:
     elapsed_ms = (time.perf_counter() - t0) * 1000
     assert resp.status_code == 200
     assert elapsed_ms < 200.0
+
+
+# ---------------------------------------------------------------------------
+# 4. SSRF SANITIZATION, DATA PROVENANCE & MUNICIPAL API COVERAGE
+# ---------------------------------------------------------------------------
+
+
+def test_city_sanitization_prevents_ssrf_and_path_traversal() -> None:
+    clean, encoded = AirQualityService._sanitize_city("../../admin?token=evil")
+    assert ".." not in clean
+    assert "?" not in clean
+    assert "/" not in clean
+    assert "%2F" not in encoded and "?" not in encoded
+
+
+def test_air_record_validation_flags_physical_violations() -> None:
+    scored = indian_data_engine.validate_and_score_air_record(
+        {"city": "Hyderabad", "aqi": 180, "pm25": 220.0, "pm10": 110.0}
+    )
+    assert scored["confidence_score"] < 1.0
+    assert any("pm25 > pm10" in f.lower() or "physical" in f.lower() for f in scored["quality_flags"])
+
+
+def test_cpcb_water_classes_b_and_c() -> None:
+    class_b = indian_data_engine.assess_surface_water_quality(
+        {"water_body_name": "Bathing Ghat", "dissolved_oxygen_mgl": 5.4, "bod_mgl": 2.6, "ph": 7.2}
+    )
+    assert class_b["cpcb_class"] == "Class B"
+
+    class_c = indian_data_engine.assess_surface_water_quality(
+        {"water_body_name": "Intake", "dissolved_oxygen_mgl": 4.2, "bod_mgl": 2.8, "ph": 6.2}
+    )
+    assert class_c["cpcb_class"] == "Class C"
+
+
+def test_full_api_routes_integration(client: TestClient) -> None:
+    for path in [
+        "/api/v1/aqi/current?city=Hyderabad",
+        "/api/v1/aqi/forecast?city=Hyderabad",
+        "/api/v1/aqi/history?city=Hyderabad&days=7",
+        "/api/v1/dashboard",
+        "/api/v1/alerts/check",
+        "/api/v1/alerts/preferences",
+        "/api/v1/impact/summary",
+        "/api/v1/planner/routines",
+        "/api/v1/municipal/wards?city=Hyderabad",
+        "/api/v1/municipal/hotspots?city=Hyderabad&domain=air",
+        "/api/v1/municipal/water?city=Hyderabad",
+        "/api/v1/municipal/interventions?city=Hyderabad",
+    ]:
+        r = client.get(path)
+        assert r.status_code == 200, f"{path} failed with {r.status_code}"
+
+    r_put = client.put("/api/v1/auth/profile", json={"city": "Hyderabad", "home_type": "Apartment"})
+    assert r_put.status_code == 200
+
+    r_prefs = client.put("/api/v1/alerts/preferences", json={"aqi_threshold": 150, "email_enabled": True})
+    assert r_prefs.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_gemini_rest_uses_header_not_query_param_and_falls_back(monkeypatch) -> None:
+    import httpx as _httpx
+
+    intel = SmogGuardIntelligence("test-secret-key", AirQualityService(), WeatherService())
+    seen_urls: list[str] = []
+    seen_headers: list[dict[str, str]] = []
+
+    class MockResp:
+        def __init__(self, status_code: int, payload: dict):
+            self.status_code = status_code
+            self._payload = payload
+
+        def json(self) -> dict:
+            return self._payload
+
+    async def mock_post(self, url, json=None, headers=None):
+        seen_urls.append(url)
+        seen_headers.append(headers or {})
+        if "gemini-3-flash-preview" in url:
+            return MockResp(503, {"error": "unavailable"})
+        return MockResp(
+            200,
+            {"candidates": [{"content": {"parts": [{"text": "Grounded Gemini reply"}]}}]},
+        )
+
+    monkeypatch.setattr(_httpx.AsyncClient, "post", mock_post)
+    text, model = await intel._call_gemini_rest("Hello", "System prompt")
+    assert text == "Grounded Gemini reply"
+    assert model == "gemini-3.1-flash-lite"
+    assert all("?key=" not in u for u in seen_urls)
+    assert all(h.get("x-goog-api-key") == "test-secret-key" for h in seen_headers)
