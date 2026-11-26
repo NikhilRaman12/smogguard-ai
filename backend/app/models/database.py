@@ -57,7 +57,8 @@ class Organization(Base):
 
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: str = Column(String(256), nullable=False)
-    org_type: str = Column(String(64), nullable=False, default="municipality")  # municipality | industry | real_estate | hospital | campus | ngo
+    # municipality | industry | real_estate | hospital | campus | ngo
+    org_type: str = Column(String(64), nullable=False, default="municipality")
     city: str = Column(String(128), nullable=False, index=True)
     state: str = Column(String(128), nullable=False, default="Telangana")
     jurisdiction_code: str = Column(String(64), nullable=True)  # e.g., GHMC, HMDA, BBMP, CPCB-ZONAL
@@ -75,11 +76,14 @@ class User(Base):
     __tablename__ = "users"
 
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id: uuid.UUID | None = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    organization_id: uuid.UUID | None = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
     email: str = Column(String(320), unique=True, nullable=False, index=True)
     password_hash: str = Column(String(256), nullable=False)
     name: str = Column(String(128), nullable=False)
-    role: str = Column(String(64), nullable=False, default="citizen")  # citizen | municipal_officer | industrial_auditor | campus_facility_mgr
+    # citizen | municipal_officer | industrial_auditor | campus_facility_mgr
+    role: str = Column(String(64), nullable=False, default="citizen")
     latitude: float = Column(Float, nullable=True)
     longitude: float = Column(Float, nullable=True)
     city: str = Column(String(128), nullable=True, default="Hyderabad")
@@ -96,7 +100,9 @@ class User(Base):
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
     daily_routines = relationship("DailyRoutine", back_populates="user", cascade="all, delete-orphan")
     impact_logs = relationship("ImpactLog", back_populates="user", cascade="all, delete-orphan")
-    alert_preference = relationship("AlertPreference", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    alert_preference = relationship(
+        "AlertPreference", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +114,9 @@ class MunicipalWard(Base):
     __tablename__ = "municipal_wards"
 
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id: uuid.UUID | None = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    organization_id: uuid.UUID | None = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
     ward_number: int = Column(Integer, nullable=False, index=True)
     ward_name: str = Column(String(128), nullable=False)
     zone_name: str = Column(String(128), nullable=False)  # e.g., Serilingampally, Charminar, Kukatpally
@@ -130,7 +138,9 @@ class EnvironmentalHotspot(Base):
     __tablename__ = "environmental_hotspots"
 
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    ward_id: uuid.UUID | None = Column(UUID(as_uuid=True), ForeignKey("municipal_wards.id", ondelete="CASCADE"), nullable=True)
+    ward_id: uuid.UUID | None = Column(
+        UUID(as_uuid=True), ForeignKey("municipal_wards.id", ondelete="CASCADE"), nullable=True
+    )
     city: str = Column(String(128), nullable=False, index=True)
     location_name: str = Column(String(128), nullable=False)
     domain: str = Column(String(64), nullable=False, default="air")  # air | water | noise | waste | heat
@@ -140,7 +150,8 @@ class EnvironmentalHotspot(Base):
     primary_pollutant: str = Column(String(64), nullable=False, default="PM2.5")
     observed_value: float = Column(Float, nullable=False)
     regulatory_limit: float = Column(Float, nullable=False)
-    probable_source: str = Column(String(256), nullable=False)  # e.g., Construction demolition dust resuspension / Diesel generator cluster
+    # e.g., Construction demolition dust resuspension / Diesel generator cluster
+    probable_source: str = Column(String(256), nullable=False)
     status: str = Column(String(32), nullable=False, default="active")  # active | mitigated | under_investigation
     identified_at: datetime = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -208,7 +219,8 @@ class UrbanHeatNoiseReading(Base):
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     city: str = Column(String(128), nullable=False, index=True)
     location_name: str = Column(String(128), nullable=False)
-    land_use_type: str = Column(String(64), nullable=False, default="commercial")  # industrial | commercial | residential | silence_zone
+    # industrial | commercial | residential | silence_zone
+    land_use_type: str = Column(String(64), nullable=False, default="commercial")
     latitude: float = Column(Float, nullable=False)
     longitude: float = Column(Float, nullable=False)
     surface_temperature_c: float | None = Column(Float, nullable=True)
@@ -231,7 +243,9 @@ class InterventionPlan(Base):
     __tablename__ = "intervention_plans"
 
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id: uuid.UUID | None = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True)
+    organization_id: uuid.UUID | None = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True
+    )
     title: str = Column(String(256), nullable=False)
     domain: str = Column(String(64), nullable=False, default="air")  # air | water | transport | heat | solid_waste
     city: str = Column(String(128), nullable=False, index=True)
@@ -319,7 +333,9 @@ class Conversation(Base):
 
     # Relationships
     user = relationship("User", back_populates="conversations")
-    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at")
+    messages = relationship(
+        "Message", back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at"
+    )
 
 
 class Message(Base):
@@ -327,7 +343,9 @@ class Message(Base):
     __tablename__ = "messages"
 
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    conversation_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    conversation_id: uuid.UUID = Column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
     role: str = Column(String(16), nullable=False)  # user / assistant / system / tool
     content: str = Column(Text, nullable=True)
     tool_calls: dict | None = Column(JSON, nullable=True)

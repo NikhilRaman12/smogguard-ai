@@ -34,7 +34,10 @@ NAAQS_LIMITS = {
 
 # CPCB Designated Best Use Classes for Surface Water (Class A to E)
 WATER_QUALITY_CRITERIA = {
-    "Class A": "Drinking water source without conventional treatment but after disinfection (DO >= 6 mg/L, BOD <= 2 mg/L)",
+    "Class A": (
+        "Drinking water source without conventional treatment but after disinfection "
+        "(DO >= 6 mg/L, BOD <= 2 mg/L)"
+    ),
     "Class B": "Outdoor bathing organized (DO >= 5 mg/L, BOD <= 3 mg/L, pH 6.5-8.5)",
     "Class C": "Drinking water source after conventional treatment & disinfection (DO >= 4 mg/L, BOD <= 3 mg/L)",
     "Class D": "Propagation of wildlife and fisheries (DO >= 4 mg/L, pH 6.5-8.5)",

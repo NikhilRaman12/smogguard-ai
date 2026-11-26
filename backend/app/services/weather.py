@@ -95,7 +95,10 @@ class WeatherService:
 
         if inversion_score >= 70:
             risk = "Severe"
-            summary = "Strong temperature inversion layer trapped within 150-300m of surface. Particulates cannot disperse."
+            summary = (
+                "Strong temperature inversion layer trapped within 150-300m of surface. "
+                "Particulates cannot disperse."
+            )
         elif inversion_score >= 45:
             risk = "Moderate"
             summary = "Atmospheric stability is dampening pollutant dispersion."

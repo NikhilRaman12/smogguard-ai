@@ -64,7 +64,9 @@ class RecommendationEngine:
         if has_vulnerability:
             warnings.append("Family members flagged with high susceptibility (respiratory/cardiac or young/elderly).")
             if aqi > 120:
-                warnings.append("Mandatory preventative use of HEPA air filtration and N95 masks when stepping outdoors.")
+                warnings.append(
+                    "Mandatory preventative use of HEPA air filtration and N95 masks when stepping outdoors."
+                )
 
         return {
             "risk_level": level,

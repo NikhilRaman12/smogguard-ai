@@ -208,6 +208,8 @@ export default function AIAssistant() {
         <div className="p-3.5 px-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
+              type="button"
+              aria-label="Toggle conversation history"
               onClick={() => setShowHistory(!showHistory)}
               className="md:hidden p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
             >
@@ -237,7 +239,12 @@ export default function AIAssistant() {
         </div>
 
         {/* Message Feed */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 scrollbar-thin">
+        <div
+          role="log"
+          aria-live="polite"
+          aria-label="AI Assistant conversation messages"
+          className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 scrollbar-thin"
+        >
           {messages.map((m, idx) => (
             <ChatMessage
               key={idx}
@@ -288,6 +295,7 @@ export default function AIAssistant() {
           >
             <input
               type="text"
+              aria-label="Ask SmogGuard AI Assistant"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={`Ask Gemini about ${activeCity} air quality, daily routines, HEPA filtration hacks...`}

@@ -63,7 +63,10 @@ async def get_air_quality_forecast(city: str) -> str:
     pm25_days = f.get("forecasts", {}).get("pm25", [])
     lines = [f"Forecast for {city}:"]
     for day in pm25_days:
-        lines.append(f"- {day.get('date')}: PM2.5 avg {day.get('avg')} µg/m³ (min {day.get('min')}, max {day.get('max')})")
+        lines.append(
+            f"- {day.get('date')}: PM2.5 avg {day.get('avg')} µg/m³ "
+            f"(min {day.get('min')}, max {day.get('max')})"
+        )
     return "\n".join(lines)
 
 
@@ -116,20 +119,41 @@ def get_indoor_air_hacks(budget_tier: str = "low", home_type: str = "apartment")
     """Returns proven indoor air quality hacks categorized by cost (free, low_cost, advanced)."""
     hacks = {
         "free": [
-            "Cross-ventilation timing: Open windows ONLY between 1:00 PM and 3:30 PM when solar heat breaks ground inversion.",
-            "Wet mopping technique: Use damp microfiber cloths daily rather than dry sweeping to trap fine particulate fallout.",
-            "Negative pressure kitchen isolation: Keep kitchen doors shut and run exhaust while cooking to prevent PM2.5 spikes from oils."
+            (
+                "Cross-ventilation timing: Open windows ONLY between 1:00 PM and 3:30 PM "
+                "when solar heat breaks ground inversion."
+            ),
+            (
+                "Wet mopping technique: Use damp microfiber cloths daily rather than dry "
+                "sweeping to trap fine particulate fallout."
+            ),
+            (
+                "Negative pressure kitchen isolation: Keep kitchen doors shut and run "
+                "exhaust while cooking to prevent PM2.5 spikes from oils."
+            ),
         ],
         "low_cost": [
-            "DIY Box Fan Air Purifier: Tape a MERV-13 furnace filter to a 20-inch box fan (clean air delivery rate comparable to $200 purifiers for ~$35).",
-            "Door & window draft proofing: Silicone self-adhesive weather strips cut outdoor air infiltration by up to 45%.",
-            "Indoor botanical sinks: Spider plants, Snake plants (Sansevieria), and Peace Lilies help reduce volatile organics and dust resuspension."
+            (
+                "DIY Box Fan Air Purifier: Tape a MERV-13 furnace filter to a 20-inch "
+                "box fan (CADR comparable to $200 purifiers for ~$35)."
+            ),
+            (
+                "Door & window draft proofing: Silicone self-adhesive weather strips "
+                "cut outdoor air infiltration by up to 45%."
+            ),
+            (
+                "Indoor botanical sinks: Spider plants, Snake plants (Sansevieria), "
+                "and Peace Lilies help reduce volatile organics and dust resuspension."
+            ),
         ],
         "advanced": [
             "True HEPA H13 active filtration with activated carbon layer for VOC adsorption.",
-            "PM2.5 laser scattering monitor (e.g. Plantower sensor) to verify actual room clean air delivery rate (CADR).",
-            "Balanced ERV/HRV mechanical ventilation with F8/F9 pre-filters."
-        ]
+            (
+                "PM2.5 laser scattering monitor (e.g. Plantower sensor) to verify "
+                "actual room clean air delivery rate (CADR)."
+            ),
+            "Balanced ERV/HRV mechanical ventilation with F8/F9 pre-filters.",
+        ],
     }
     selected = hacks.get(budget_tier.lower(), hacks["free"] + hacks["low_cost"])
     return f"Recommended Indoor Hacks for {home_type} ({budget_tier} tier):\n- " + "\n- ".join(selected)
@@ -213,7 +237,10 @@ class SmogGuardIntelligence:
 
         async with httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=4.0)) as client:
             for model in self.gemini_models:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.gemini_api_key}"
+                url = (
+                    f"https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"{model}:generateContent?key={self.gemini_api_key}"
+                )
                 try:
                     resp = await client.post(url, json=payload)
                     if resp.status_code == 200:
@@ -264,27 +291,7 @@ class SmogGuardIntelligence:
 
         # 1. Live Google Gemini Intelligence (handles ANY user question, grounded in live telemetry)
         if self.has_valid_key:
-            system_prompt = (
-                "You are SmogGuard AI (UrbanGuard India), an elite Environmental Data Scientist, Urban Climate Analyst, "
-                "and versatile AI Assistant powered by Google Gemini.\n\n"
-                "CAPABILITIES & BEHAVIOR:\n"
-                "- You can answer ANY question the user asks: air quality, winter smog physics, health/asthma advice, "
-                "DIY indoor air hacks, municipal water/noise/heat intelligence, daily routines, climate policy, science, "
-                "technology, or general knowledge.\n"
-                "- Whenever the user's question relates to air quality, weather, health, or sustainability, ground your "
-                "answer in the LIVE TELEMETRY provided below (never invent conflicting AQI numbers) and quantify CO2 / PM2.5 impact.\n"
-                "- When the user asks a general or non-environmental question, answer it directly, accurately, and helpfully "
-                "without forcing unrelated AQI statistics.\n"
-                "- Format responses cleanly in GitHub-flavored Markdown with clear headings and concise bullet points.\n\n"
-                f"LIVE TELEMETRY FOR {aqi_data.get('city', city).upper()}:\n"
-                f"- AQI: {aqi_data.get('aqi')} ({aqi_data.get('health_category')}) | Dominant: {aqi_data.get('dominant_pollutant')}\n"
-                f"- PM2.5: {aqi_data.get('pm25')} µg/m³ | PM10: {aqi_data.get('pm10')} µg/m³ | NO2: {aqi_data.get('no2')} ppb\n"
-                f"- Data Status: {aqi_data.get('data_status', 'live')} (Confidence: {aqi_data.get('confidence_score', 0.95)})\n"
-                f"- Weather: {weather_data.get('temperature')}°C, Wind {weather_data.get('wind_speed')} km/h, Pressure {weather_data.get('pressure')} hPa\n"
-                f"- Temperature Inversion Risk: {inv.get('risk_level')} — {inv.get('scientific_summary')}\n"
-                f"- Clinical Health Risk: {health.get('risk_level')} (Score {health.get('risk_score')}/100) — {health.get('description')}\n"
-                f"- User Profile: {json.dumps(ctx)}"
-            )
+            system_prompt = self._build_system_prompt(city, aqi_data, weather_data, inv, health, ctx)
             gemini_text, used_model = await self._call_gemini_rest(
                 message=message,
                 system_prompt=system_prompt,
@@ -303,93 +310,169 @@ class SmogGuardIntelligence:
                 }
 
         # 2. Dynamic, Intent-Specific Scientific Synthesis Engine (offline/fallback)
-        # Classify intent from user prompt
-        is_hacks_query = any(k in msg_lower for k in ["hack", "indoor", "purifier", "filter", "diy", "room", "seal", "plant"])
-        is_routine_query = any(k in msg_lower for k in ["routine", "schedule", "exercise", "walk", "jog", "commute", "travel", "plan", "morning", "evening"])
-        is_impact_query = any(k in msg_lower for k in ["impact", "carbon", "co2", "save", "reduction", "emission", "metro", "electric"])
-        is_health_query = any(k in msg_lower for k in ["asthma", "child", "elderly", "health", "symptom", "mask", "n95", "cough", "doctor", "risk"])
-
-        # Build tailored responses based on exact question intent
-        if is_hacks_query:
-            tools_used = ["get_indoor_air_hacks", "get_realtime_air_quality"]
-            hacks_text = get_indoor_air_hacks.invoke({"budget_tier": "low", "home_type": ctx.get("home_type", "apartment")})
-            response_text = (
-                f"### 🏠 Scientific Indoor Air Purification Hacks for {city}\n\n"
-                f"With current **AQI {aqi_data['aqi']} ({aqi_data['health_category']})** in {city}, outdoor particulate penetration reaches 60–80% without micro-sealing.\n\n"
-                f"#### 🛠️ Evidence-Based Interventions:\n"
-                f"1. **Corsi-Rosenthal Box / DIY Filter:** Taping a MERV-13 (or HEPA furnace filter) to an ordinary box fan produces CADR > 250 m³/hr at 1/5th the commercial price.\n"
-                f"2. **Aerosol Trapping (Wet Mopping):** Microfiber damp wipe floors daily to eliminate resuspended PM2.5 and PM10 (*cuts re-entrainment by 30%*).\n"
-                f"3. **Thermal Aeration Window:** Open windows strictly between **1:00 PM – 3:30 PM** when solar insolation breaks the surface inversion boundary.\n"
-                f"4. **Kitchen Isolation:** Run range hoods venting outside or transition to induction cookers to prevent indoor NO₂ spikes > 120 ppb.\n\n"
-                f"*{hacks_text}*"
-            )
-        elif is_routine_query:
-            tools_used = ["get_weather_and_inversion_status", "assess_health_risk", "calculate_sustainable_impact"]
-            current_aqi = aqi_data.get("aqi", 150)
-            morning_safe = "STRICTLY INDOOR ONLY" if inv["risk_level"] in ["Severe", "High"] or current_aqi > 200 else "MILD OUTDOOR PERMITTED"
-            response_text = (
-                f"### 📅 Inversion-Calibrated Daily Routine Protocol: {city}\n\n"
-                f"- **Current Inversion Layer:** **{inv['risk_level']}** ({weather_data['temperature']}°C, {weather_data['wind_speed']} km/h wind)\n"
-                f"- **Morning Status (06:00 – 09:00):** **{morning_safe}**. Particulates are trapped within 150–250m of ground level.\n\n"
-                f"#### ⏰ Optimal Hourly Schedule:\n"
-                f"- **06:30 - 08:00 AM (Early Morning):** Indoor yoga or stationary workouts in a sealed bedroom with HEPA filtration.\n"
-                f"- **08:30 - 09:30 AM (Commute):** Use Metro/AC public transit with a fitted N95 respirator. Avoid open two-wheeler travel.\n"
-                f"- **12:30 - 02:30 PM (Midday Solar Peak):** Safest window for outdoor errands, sunlight exposure, and 20-min room air flush.\n"
-                f"- **06:30 - 08:30 PM (Evening Congestion):** Keep balcony doors sealed against resuspended dust and vehicular exhaust.\n"
-                f"- **10:00 PM - 06:30 AM (Rest):** Sleep in clean-air sanctuary room with purifier on whisper mode."
-            )
-        elif is_impact_query:
-            tools_used = ["calculate_sustainable_impact", "get_realtime_air_quality"]
-            m_transit = RecommendationEngine.calculate_impact("metro_transit")
-            h_purifier = RecommendationEngine.calculate_impact("hepa_filtration")
-            response_text = (
-                f"### 🌍 Quantified Sustainable Impact Analysis for {city}\n\n"
-                f"Shifting personal routines during high pollution episodes yields compounding personal health and environmental benefits:\n\n"
-                f"1. **Public Transit / Metro Shift:**\n"
-                f"   - **CO₂ Avoided:** `{m_transit['co2_saved_kg']} kg/trip` (~260 kg/year)\n"
-                f"   - **PM2.5 Avoided:** `{m_transit['pm25_avoided_ug']} µg` personal inhaled dose reduction.\n"
-                f"2. **HEPA Air Purification Sanctuary:**\n"
-                f"   - **PM2.5 Inhaled Savings:** `{h_purifier['pm25_avoided_ug']} µg/day` per resident.\n"
-                f"3. **Transition to Induction Cooking:**\n"
-                f"   - Eliminates indoor methane and NO₂ combustion by-products completely.\n\n"
-                f"**Collective Neighborhood Impact:** If 500 households in your ward follow these steps, ward-level carbon drops by **1.2 metric tons CO₂/day**."
-            )
-        elif is_health_query:
-            tools_used = ["assess_health_risk", "get_realtime_air_quality"]
-            response_text = (
-                f"### 🩺 Clinical Risk & Protection Advisory: {city}\n\n"
-                f"- **Current Air Severity:** **AQI {aqi_data['aqi']}** ({aqi_data['health_category']}) | Dominant: {aqi_data['dominant_pollutant'].upper()}\n"
-                f"- **Risk Classification:** **{health['risk_level']}** (Score: {health['risk_score']}/100)\n"
-                f"- **Targeted Vulnerability:** Asthmatic, pediatric, and geriatric individuals.\n\n"
-                f"#### 📋 Clinical Guidance:\n"
-                f"- Keep quick-relief bronchodilator inhalers within immediate reach at all times.\n"
-                f"- Wear an **N95 / FFP2 respirator** with complete perimeter seal if stepping near arterial roadways.\n"
-                f"- Avoid strenuous outdoor exercise: deep breathing multiplies fine particulate lung deposition by up to 5x.\n"
-                f"- {health['description']}"
-            )
-        else:
-            # General comprehensive urban telemetry report
-            tools_used = ["get_realtime_air_quality", "get_weather_and_inversion_status", "assess_health_risk"]
-            quick_recs = RecommendationEngine.get_quick_recommendations(aqi_data.get("aqi", 150))
-            response_text = (
-                f"### 🌬️ SmogGuard Real-Time Intelligence: {aqi_data['city']}\n\n"
-                f"- **Current AQI:** **{aqi_data['aqi']}** ({aqi_data['health_category']}) | Dominant: {aqi_data['dominant_pollutant'].upper()}\n"
-                f"- **PM2.5 Concentration:** {aqi_data['pm25']} µg/m³ (WHO safe threshold is 15 µg/m³)\n"
-                f"- **Atmospheric Stagnation:** {inv['risk_level']} Inversion Risk ({weather_data['temperature']}°C, {weather_data['wind_speed']} km/h wind, {weather_data['pressure']} hPa)\n\n"
-                f"#### 🩺 Health & Clinical Risk ({health['risk_level']})\n"
-                f"{health['description']}\n\n"
-                f"#### 📋 Recommended Low-Emission Protocol & Indoor Hacks\n"
-            )
-            for i, rec in enumerate(quick_recs, start=1):
-                response_text += f"{i}. **{rec['title']}**: {rec['description']}\n   *Impact:* `{rec['impact']}`\n"
-            response_text += (
-                f"\n#### 🔬 Atmospheric Science Insight\n"
-                f"{inv['scientific_summary']} Ground-level cold air trapped beneath warmer layers acts as a thermal lid, "
-                f"preventing vertical convection. Shifting outdoor activities away from 6:00 AM – 10:00 AM avoids maximum particulate concentrations."
-            )
-
+        response_text, tools_used = self._synthesize_fallback(
+            msg_lower=msg_lower,
+            city=city,
+            aqi_data=aqi_data,
+            weather_data=weather_data,
+            inv=inv,
+            health=health,
+            ctx=ctx,
+        )
         return {
             "response": response_text,
             "tools_used": tools_used,
             "data_sources": data_sources,
         }
+
+    def _build_system_prompt(
+        self,
+        city: str,
+        aqi_data: dict[str, Any],
+        weather_data: dict[str, Any],
+        inv: dict[str, Any],
+        health: dict[str, Any],
+        ctx: dict[str, Any],
+    ) -> str:
+        """Construct telemetry-grounded system prompt for Google Gemini."""
+        return (
+            "You are SmogGuard AI (UrbanGuard India), an elite Environmental Data Scientist, "
+            "Urban Climate Analyst, and versatile AI Assistant powered by Google Gemini.\n\n"
+            "CAPABILITIES & BEHAVIOR:\n"
+            "- You can answer ANY question the user asks: air quality, winter smog physics, "
+            "health/asthma advice, DIY indoor air hacks, municipal water/noise/heat intelligence, "
+            "daily routines, climate policy, science, technology, or general knowledge.\n"
+            "- Whenever the question relates to air quality, weather, health, or sustainability, "
+            "ground your answer in the LIVE TELEMETRY below and quantify CO2 / PM2.5 impact.\n"
+            "- For general or non-environmental questions, answer directly and accurately "
+            "without forcing unrelated AQI statistics.\n"
+            "- Format responses cleanly in GitHub-flavored Markdown with clear headings.\n\n"
+            f"LIVE TELEMETRY FOR {aqi_data.get('city', city).upper()}:\n"
+            f"- AQI: {aqi_data.get('aqi')} ({aqi_data.get('health_category')}) | "
+            f"Dominant: {aqi_data.get('dominant_pollutant')}\n"
+            f"- PM2.5: {aqi_data.get('pm25')} µg/m³ | PM10: {aqi_data.get('pm10')} µg/m³ | "
+            f"NO2: {aqi_data.get('no2')} ppb\n"
+            f"- Data Status: {aqi_data.get('data_status', 'live')} "
+            f"(Confidence: {aqi_data.get('confidence_score', 0.95)})\n"
+            f"- Weather: {weather_data.get('temperature')}°C, Wind {weather_data.get('wind_speed')} km/h, "
+            f"Pressure {weather_data.get('pressure')} hPa\n"
+            f"- Temperature Inversion Risk: {inv.get('risk_level')} — {inv.get('scientific_summary')}\n"
+            f"- Clinical Health Risk: {health.get('risk_level')} "
+            f"(Score {health.get('risk_score')}/100) — {health.get('description')}\n"
+            f"- User Profile: {json.dumps(ctx)}"
+        )
+
+    def _synthesize_fallback(
+        self,
+        msg_lower: str,
+        city: str,
+        aqi_data: dict[str, Any],
+        weather_data: dict[str, Any],
+        inv: dict[str, Any],
+        health: dict[str, Any],
+        ctx: dict[str, Any],
+    ) -> tuple[str, list[str]]:
+        """Generate intent-specific scientific response when LLM API is unavailable."""
+        is_hacks = any(k in msg_lower for k in ["hack", "indoor", "purifier", "filter", "diy", "room", "seal", "plant"])
+        is_routine = any(
+            k in msg_lower
+            for k in ["routine", "schedule", "exercise", "walk", "jog", "commute", "travel", "plan", "morning"]
+        )
+        is_impact = any(k in msg_lower for k in ["impact", "carbon", "co2", "save", "reduction", "emission", "metro"])
+        is_health = any(
+            k in msg_lower for k in ["asthma", "child", "elderly", "health", "symptom", "mask", "n95", "cough", "risk"]
+        )
+
+        if is_hacks:
+            hacks_text = get_indoor_air_hacks.invoke(
+                {"budget_tier": "low", "home_type": ctx.get("home_type", "apartment")}
+            )
+            text = (
+                f"### 🏠 Scientific Indoor Air Purification Hacks for {city}\n\n"
+                f"With current **AQI {aqi_data['aqi']} ({aqi_data['health_category']})** in {city}, "
+                f"outdoor particulate penetration reaches 60–80% without micro-sealing.\n\n"
+                "#### 🛠️ Evidence-Based Interventions:\n"
+                "1. **Corsi-Rosenthal Box / DIY Filter:** Taping a MERV-13 filter to a box fan "
+                "produces CADR > 250 m³/hr at 1/5th the commercial price.\n"
+                "2. **Aerosol Trapping (Wet Mopping):** Microfiber damp wipe floors daily to eliminate "
+                "resuspended PM2.5 and PM10 (*cuts re-entrainment by 30%*).\n"
+                "3. **Thermal Aeration Window:** Open windows strictly between **1:00 PM – 3:30 PM** "
+                "when solar insolation breaks the surface inversion boundary.\n"
+                "4. **Kitchen Isolation:** Run range hoods venting outside or use induction cookers "
+                "to prevent indoor NO₂ spikes > 120 ppb.\n\n"
+                f"*{hacks_text}*"
+            )
+            return text, ["get_indoor_air_hacks", "get_realtime_air_quality"]
+
+        if is_routine:
+            current_aqi = aqi_data.get("aqi", 150)
+            is_severe = inv["risk_level"] in ["Severe", "High"] or current_aqi > 200
+            morning_safe = "STRICTLY INDOOR ONLY" if is_severe else "MILD OUTDOOR PERMITTED"
+            text = (
+                f"### 📅 Inversion-Calibrated Daily Routine Protocol: {city}\n\n"
+                f"- **Current Inversion Layer:** **{inv['risk_level']}** "
+                f"({weather_data['temperature']}°C, {weather_data['wind_speed']} km/h wind)\n"
+                f"- **Morning Status (06:00 – 09:00):** **{morning_safe}**. "
+                "Particulates are trapped within 150–250m of ground level.\n\n"
+                "#### ⏰ Optimal Hourly Schedule:\n"
+                "- **06:30 - 08:00 AM:** Indoor yoga/workouts in a sealed room with HEPA filtration.\n"
+                "- **08:30 - 09:30 AM:** Metro/AC public transit with a fitted N95 respirator.\n"
+                "- **12:30 - 02:30 PM:** Safest solar window for outdoor errands and 20-min air flush.\n"
+                "- **06:30 - 08:30 PM:** Keep balcony doors sealed against evening traffic exhaust.\n"
+                "- **10:00 PM - 06:30 AM:** Sleep in clean-air sanctuary room on whisper mode."
+            )
+            return text, ["get_weather_and_inversion_status", "assess_health_risk", "calculate_sustainable_impact"]
+
+        if is_impact:
+            m_transit = RecommendationEngine.calculate_impact("metro_transit")
+            h_purifier = RecommendationEngine.calculate_impact("hepa_filtration")
+            text = (
+                f"### 🌍 Quantified Sustainable Impact Analysis for {city}\n\n"
+                "Shifting daily routines during pollution episodes yields compounding health and climate gains:\n\n"
+                "1. **Public Transit / Metro Shift:**\n"
+                f"   - **CO₂ Avoided:** `{m_transit['co2_saved_kg']} kg/trip` (~260 kg/year)\n"
+                f"   - **PM2.5 Avoided:** `{m_transit['pm25_avoided_ug']} µg` inhaled dose reduction.\n"
+                "2. **HEPA Air Purification Sanctuary:**\n"
+                f"   - **PM2.5 Inhaled Savings:** `{h_purifier['pm25_avoided_ug']} µg/day` per resident.\n"
+                "3. **Induction Cooking:** Eliminates indoor methane and NO₂ combustion by-products.\n\n"
+                "**Collective Ward Impact:** 500 households adopting these steps cut **1.2 metric tons CO₂/day**."
+            )
+            return text, ["calculate_sustainable_impact", "get_realtime_air_quality"]
+
+        if is_health:
+            text = (
+                f"### 🩺 Clinical Risk & Protection Advisory: {city}\n\n"
+                f"- **Current Air Severity:** **AQI {aqi_data['aqi']}** ({aqi_data['health_category']}) | "
+                f"Dominant: {aqi_data['dominant_pollutant'].upper()}\n"
+                f"- **Risk Classification:** **{health['risk_level']}** (Score: {health['risk_score']}/100)\n"
+                "- **Targeted Vulnerability:** Asthmatic, pediatric, and geriatric individuals.\n\n"
+                "#### 📋 Clinical Guidance:\n"
+                "- Keep quick-relief bronchodilator inhalers within immediate reach.\n"
+                "- Wear an **N95 / FFP2 respirator** with complete seal near arterial roadways.\n"
+                "- Avoid strenuous outdoor exercise (deep breathing increases lung deposition up to 5x).\n"
+                f"- {health['description']}"
+            )
+            return text, ["assess_health_risk", "get_realtime_air_quality"]
+
+        quick_recs = RecommendationEngine.get_quick_recommendations(aqi_data.get("aqi", 150))
+        text = (
+            f"### 🌬️ SmogGuard Real-Time Intelligence: {aqi_data['city']}\n\n"
+            f"- **Current AQI:** **{aqi_data['aqi']}** ({aqi_data['health_category']}) | "
+            f"Dominant: {aqi_data['dominant_pollutant'].upper()}\n"
+            f"- **PM2.5 Concentration:** {aqi_data['pm25']} µg/m³ (WHO safe threshold is 15 µg/m³)\n"
+            f"- **Atmospheric Stagnation:** {inv['risk_level']} Inversion Risk "
+            f"({weather_data['temperature']}°C, {weather_data['wind_speed']} km/h wind, "
+            f"{weather_data['pressure']} hPa)\n\n"
+            f"#### 🩺 Health & Clinical Risk ({health['risk_level']})\n"
+            f"{health['description']}\n\n"
+            "#### 📋 Recommended Low-Emission Protocol & Indoor Hacks\n"
+        )
+        for i, rec in enumerate(quick_recs, start=1):
+            text += f"{i}. **{rec['title']}**: {rec['description']}\n   *Impact:* `{rec['impact']}`\n"
+        text += (
+            f"\n#### 🔬 Atmospheric Science Insight\n"
+            f"{inv['scientific_summary']} Ground-level cold air trapped beneath warmer layers acts as a thermal lid, "
+            "preventing vertical convection. Shifting outdoor exercise away from 6:00 AM – 10:00 AM "
+            "avoids maximum particulate concentrations."
+        )
+        return text, ["get_realtime_air_quality", "get_weather_and_inversion_status", "assess_health_risk"]

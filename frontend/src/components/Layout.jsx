@@ -122,6 +122,8 @@ export default function Layout() {
               <p className="text-[11px] text-slate-400">Urban Pollution Intelligence</p>
             </div>
             <button
+              type="button"
+              aria-label="Close navigation menu"
               onClick={() => setSidebarOpen(false)}
               className="ml-auto lg:hidden text-slate-400 hover:text-white"
             >
@@ -154,6 +156,7 @@ export default function Layout() {
                 >
                   <input
                     type="text"
+                    aria-label="Enter city name"
                     value={cityInput}
                     onChange={(e) => setCityInput(e.target.value)}
                     placeholder="Enter city..."
@@ -189,7 +192,7 @@ export default function Layout() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
+          <nav aria-label="Primary Navigation" className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -245,6 +248,8 @@ export default function Layout() {
         <header className="sticky top-0 z-30 flex items-center justify-between gap-4 px-4 lg:px-6 py-3 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
           <div className="flex items-center gap-3">
             <button
+              type="button"
+              aria-label="Open navigation menu"
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden p-2 rounded-lg text-slate-400 hover:bg-slate-800"
             >
@@ -278,6 +283,8 @@ export default function Layout() {
           {/* Right Header items */}
           <div className="flex items-center gap-2">
             <button
+              type="button"
+              aria-label="Toggle theme appearance"
               onClick={() => setDarkMode(!darkMode)}
               title="Toggle theme appearance"
               className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"

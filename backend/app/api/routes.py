@@ -413,7 +413,10 @@ async def generate_planner(
             "wind_speed_kmh": weather_data.get("wind_speed"),
             "temperature_c": weather_data.get("temperature"),
         },
-        "overall_advisory": f"Current AQI is {current_aqi} ({aqi_data.get('health_category')}). {inversion['scientific_summary']}",
+        "overall_advisory": (
+            f"Current AQI is {current_aqi} ({aqi_data.get('health_category')}). "
+            f"{inversion['scientific_summary']}"
+        ),
         "schedule": schedule,
     }
 
@@ -861,7 +864,10 @@ async def get_municipal_interventions(
             "projected_reduction_pct": 62.5,
             "capex_inr_lakhs": 145.0,
             "opex_inr_lakhs": 24.0,
-            "evidence_base": "TERI & CPCB mechanical road sweeping trials in NCR demonstrating 58% reduction in coarse aerosol resuspension.",
+            "evidence_base": (
+                "TERI & CPCB mechanical road sweeping trials in NCR demonstrating "
+                "58% reduction in coarse aerosol resuspension."
+            ),
             "status": "executing",
             "completion_pct": 45,
         },
@@ -893,7 +899,10 @@ async def get_municipal_interventions(
             "projected_reduction_pct": 33.3,
             "capex_inr_lakhs": 65.0,
             "opex_inr_lakhs": 4.5,
-            "evidence_base": "IIIT-Hyderabad Building Science Lab cool-roof empirical field measurements showing 4.2°C ambient reduction.",
+            "evidence_base": (
+                "IIIT-Hyderabad Building Science Lab cool-roof empirical field "
+                "measurements showing 4.2°C ambient reduction."
+            ),
             "status": "executing",
             "completion_pct": 70,
         },

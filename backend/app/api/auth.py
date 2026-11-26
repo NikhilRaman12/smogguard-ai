@@ -49,6 +49,43 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
     return jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
+async def _resolve_user_from_token(token: str, db: AsyncSession) -> User | None:
+    """Decode JWT token and load the corresponding User if valid."""
+    payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    user_id: str | None = payload.get("sub")
+    if not user_id:
+        return None
+    try:
+        uid: uuid.UUID | str = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+    except (ValueError, TypeError):
+        uid = user_id
+    res = await db.execute(select(User).where(User.id == uid))
+    return res.scalar_one_or_none()
+
+
+async def _get_or_create_demo_user(db: AsyncSession) -> User:
+    """Return the isolated demo sandbox user, creating it on first access."""
+    res = await db.execute(select(User).where(User.email == "demo@smogguard.ai"))
+    demo_user = res.scalar_one_or_none()
+    if demo_user:
+        return demo_user
+
+    default_user = User(
+        email="demo@smogguard.ai",
+        password_hash=hash_password("DemoPassword123!"),
+        name="Urban Eco Resident",
+        city="Delhi",
+        country="India",
+        home_type="Apartment",
+        health_conditions={"asthma": True, "allergies": True},
+        family_members=[{"is_child": True}, {"is_elderly": False}],
+    )
+    db.add(default_user)
+    await db.commit()
+    await db.refresh(default_user)
+    return default_user
+
+
 async def get_current_user(
     token: str | None = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
@@ -62,44 +99,14 @@ async def get_current_user(
 
     if token:
         try:
-            payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
-            user_id: str = payload.get("sub")
-            if user_id:
-                try:
-                    uid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
-                except (ValueError, TypeError):
-                    uid = user_id
-                query = select(User).where(User.id == uid)
-                res = await db.execute(query)
-                user = res.scalar_one_or_none()
-                if user:
-                    return user
+            user = await _resolve_user_from_token(token, db)
+            if user:
+                return user
         except JWTError:
             if not settings.demo_mode:
                 raise credentials_exception
 
-    # If in DEMO MODE (default for review and local evaluation), allow deterministic isolated demo user
     if settings.demo_mode:
-        query = select(User).where(User.email == "demo@smogguard.ai")
-        res = await db.execute(query)
-        demo_user = res.scalar_one_or_none()
-        if demo_user:
-            return demo_user
-
-        # Create demo user
-        default_user = User(
-            email="demo@smogguard.ai",
-            password_hash=hash_password("DemoPassword123!"),
-            name="Urban Eco Resident",
-            city="Delhi",
-            country="India",
-            home_type="Apartment",
-            health_conditions={"asthma": True, "allergies": True},
-            family_members=[{"is_child": True}, {"is_elderly": False}],
-        )
-        db.add(default_user)
-        await db.commit()
-        await db.refresh(default_user)
-        return default_user
+        return await _get_or_create_demo_user(db)
 
     raise credentials_exception
