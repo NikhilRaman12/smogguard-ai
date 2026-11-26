@@ -27,6 +27,7 @@ load_env_file(os.path.join(project_root, ".env"), override=True)
 load_env_file(os.path.join(project_root, ".env.example"), override=False)
 
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_file}"
+os.environ.setdefault("DEMO_MODE", "true")
 if "GEMINI_API_KEY" not in os.environ:
     os.environ["GEMINI_API_KEY"] = "demo-local-key"
 os.environ["WAQI_API_TOKEN"] = os.environ.get("WAQI_API_TOKEN", "demo")

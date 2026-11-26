@@ -6,6 +6,7 @@ JWT token issuing and validation, password hashing via bcrypt.
 from __future__ import annotations
 
 import logging
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -72,7 +73,7 @@ async def _get_or_create_demo_user(db: AsyncSession) -> User:
 
     default_user = User(
         email="demo@smogguard.ai",
-        password_hash=hash_password("DemoPassword123!"),
+        password_hash=hash_password(secrets.token_urlsafe(24)),
         name="Urban Eco Resident",
         city="Delhi",
         country="India",

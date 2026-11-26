@@ -20,6 +20,7 @@ if backend_dir not in sys.path:
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_comprehensive.db"
 os.environ["GEMINI_API_KEY"] = "demo-local-key"
+os.environ["DEMO_MODE"] = "true"
 
 from app.main import app  # noqa: E402
 import app.api.auth as auth_module  # noqa: E402

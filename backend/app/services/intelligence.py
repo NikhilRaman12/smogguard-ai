@@ -235,14 +235,15 @@ class SmogGuardIntelligence:
             },
         }
 
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.gemini_api_key,
+        }
         async with httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=4.0)) as client:
             for model in self.gemini_models:
-                url = (
-                    f"https://generativelanguage.googleapis.com/v1beta/models/"
-                    f"{model}:generateContent?key={self.gemini_api_key}"
-                )
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
                 try:
-                    resp = await client.post(url, json=payload)
+                    resp = await client.post(url, json=payload, headers=headers)
                     if resp.status_code == 200:
                         data = resp.json()
                         candidates = data.get("candidates", [])

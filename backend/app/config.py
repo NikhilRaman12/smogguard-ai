@@ -4,6 +4,7 @@ SmogGuard AI — Application Configuration
 Loads all configuration from environment variables using pydantic-settings.
 """
 
+import secrets
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
@@ -43,7 +44,7 @@ class Settings(BaseSettings):
         alias="OPENAQ_API_KEY",
     )
     jwt_secret_key: str = Field(
-        default="smogguard-fallback-secret-key-change-in-production-a7f3b9c2d1e4",
+        default_factory=lambda: secrets.token_urlsafe(32),
         alias="JWT_SECRET_KEY",
     )
     jwt_algorithm: str = Field(
@@ -59,9 +60,9 @@ class Settings(BaseSettings):
         alias="APP_NAME",
     )
     demo_mode: bool = Field(
-        default=True,
+        default=False,
         alias="DEMO_MODE",
-        description="If True, enables demo sandbox access for judging without login",
+        description="If True, enables isolated demo sandbox access for evaluation without login",
     )
     cors_origins: list[str] = Field(
         default=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"],

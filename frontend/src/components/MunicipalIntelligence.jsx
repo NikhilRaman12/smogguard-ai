@@ -17,9 +17,7 @@ import {
   Sliders,
   DollarSign
 } from 'lucide-react';
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
+import api from '../services/api';
 
 export default function MunicipalIntelligence({ activeCity = 'Hyderabad' }) {
   const [wards, setWards] = useState([]);
@@ -33,11 +31,13 @@ export default function MunicipalIntelligence({ activeCity = 'Hyderabad' }) {
   const fetchMunicipalData = async () => {
     setLoading(true);
     try {
+      const encodedCity = encodeURIComponent(activeCity);
+      const encodedDomain = encodeURIComponent(domainFilter);
       const [wardsRes, hotRes, waterRes, intRes] = await Promise.all([
-        axios.get(`${API_BASE}/municipal/wards?city=${activeCity}`),
-        axios.get(`${API_BASE}/municipal/hotspots?city=${activeCity}&domain=${domainFilter}`),
-        axios.get(`${API_BASE}/municipal/water?city=${activeCity}`),
-        axios.get(`${API_BASE}/municipal/interventions?city=${activeCity}`),
+        api.get(`/municipal/wards?city=${encodedCity}`),
+        api.get(`/municipal/hotspots?city=${encodedCity}&domain=${encodedDomain}`),
+        api.get(`/municipal/water?city=${encodedCity}`),
+        api.get(`/municipal/interventions?city=${encodedCity}`),
       ]);
       setWards(wardsRes.data.wards || []);
       setHotspots(hotRes.data.hotspots || []);
@@ -72,10 +72,10 @@ export default function MunicipalIntelligence({ activeCity = 'Hyderabad' }) {
                 CPCB · TSPCB · India-WRIS · IMD
               </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-              <Building2 className="w-7 h-7 text-cyan-400" />
+            <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
+              <Building2 className="w-7 h-7 text-cyan-400" aria-hidden="true" />
               <span>{activeCity} Urban Environmental Intelligence</span>
-            </h1>
+            </h2>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
               Cross-domain environmental decision support for municipal corporations, industrial zones, hospital corridors, and residential ward associations.
             </p>
@@ -83,6 +83,8 @@ export default function MunicipalIntelligence({ activeCity = 'Hyderabad' }) {
 
           <div className="flex items-center gap-3">
             <button
+              type="button"
+              aria-label="Refresh municipal telemetry"
               onClick={fetchMunicipalData}
               disabled={loading}
               className="flex items-center text-xs font-bold px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 rounded-xl shadow-lg shadow-cyan-500/20 transition active:scale-95 disabled:opacity-50"
@@ -94,7 +96,7 @@ export default function MunicipalIntelligence({ activeCity = 'Hyderabad' }) {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="relative z-10 flex flex-wrap gap-2 mt-6">
+        <div role="tablist" aria-label="Municipal intelligence domains" className="relative z-10 flex flex-wrap gap-2 mt-6">
           {[
             { id: 'wards', label: 'Ward Vulnerability Index', icon: Layers, count: wards.length },
             { id: 'hotspots', label: 'Environmental Hotspots', icon: ShieldAlert, count: hotspots.length },
@@ -106,6 +108,9 @@ export default function MunicipalIntelligence({ activeCity = 'Hyderabad' }) {
             return (
               <button
                 key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                   active 
